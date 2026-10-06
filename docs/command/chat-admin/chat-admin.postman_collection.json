@@ -1,0 +1,966 @@
+﻿{
+  "info": {
+    "name": "Chat Admin API",
+    "description": "Employee-facing chat moderation and user-facing report endpoints.\n\nSet the following collection variables before running:\n- `server`    e.g. http://localhost:3000/api\n- `dauth`     Employee platform dauth (used as Bearer token and dauth header)\n- `userDauth` User platform dauth (for user-facing report endpoints)\n- `roomId`    A valid ChatRoom id\n- `messageId` A valid ChatRoomMessage id\n- `userId`    A valid User id to report\n- `reportId`  A ChatMessageReport or ChatUserReport id\n- `beforeCursor` Auto-set by GET room messages test script",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "server",    "value": "http://localhost:3000/api", "type": "string" },
+    { "key": "dauth",     "value": "",                          "type": "string" },
+    { "key": "userDauth", "value": "",                          "type": "string" },
+    { "key": "roomId",        "value": "1",                         "type": "string" },
+    { "key": "messageId",     "value": "1",                         "type": "string" },
+    { "key": "userId",        "value": "1",                         "type": "string" },
+    { "key": "reportId",      "value": "1",                         "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{dauth}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Rooms",
+      "item": [
+        {
+          "name": "GET rooms (all)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "dauth", "value": "{{dauth}}" }
+            ],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms?page=0&limit=20",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms"],
+              "query": [
+                { "key": "page",  "value": "0" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns array', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.be.an('array');",
+                  "});",
+                  "pm.test('Each room has lastMessage and openReportCount', () => {",
+                  "  pm.response.json().forEach(room => {",
+                  "    pm.expect(room).to.have.property('lastMessage');",
+                  "    pm.expect(room).to.have.property('openReportCount');",
+                  "  });",
+                  "});",
+                  "if (pm.response.json().length > 0) {",
+                  "  pm.collectionVariables.set('roomId', pm.response.json()[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET rooms (filtered by type)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms?type=Group",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms"],
+              "query": [{ "key": "type", "value": "Group" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('All rooms are of type Group', () => {",
+                  "  pm.response.json().forEach(r => pm.expect(r.type).to.eql('Group'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET rooms (has open report)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms?hasOpenReport=true",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms"],
+              "query": [{ "key": "hasOpenReport", "value": "true" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('All rooms have openReportCount > 0', () => {",
+                  "  pm.response.json().forEach(r => pm.expect(r.openReportCount).to.be.above(0));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET rooms - 403 no permission",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{dauth}}", "type": "string" }] },
+            "method": "GET",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Run this with a token that lacks canViewUserChats",
+                  "pm.test('Status 403', () => pm.response.to.have.status(403));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET rooms (search by user name)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms?search=Riya",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms"],
+              "query": [{ "key": "search", "value": "Riya" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE unban user",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/users/{{userId}}/ban",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "users", "{{userId}}", "ban"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('unbanned is true', () => {",
+                  "  pm.expect(pm.response.json().unbanned).to.be.true;",
+                  "});",
+                  "pm.test('userId matches', () => {",
+                  "  const uid = parseInt(pm.collectionVariables.get('userId'));",
+                  "  pm.expect(pm.response.json().userId).to.eql(uid);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE unban user - 404 not banned",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/users/{{userId}}/ban",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "users", "{{userId}}", "ban"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Run after the user has already been unbanned",
+                  "pm.test('Status 404', () => pm.response.to.have.status(404));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Messages",
+      "item": [
+        {
+          "name": "GET room messages",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms/{{roomId}}/messages?limit=30",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms", "{{roomId}}", "messages"],
+              "query": [{ "key": "limit", "value": "30" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+                  "pm.test('Each message has required fields', () => {",
+                  "  pm.response.json().forEach(msg => {",
+                  "    pm.expect(msg).to.have.property('id');",
+                  "    pm.expect(msg).to.have.property('chatroomId');",
+                  "    pm.expect(msg).to.have.property('isVisible');",
+                  "    pm.expect(msg).to.have.property('Reactions');",
+                  "    pm.expect(msg).to.have.property('MessageReports');",
+                  "    pm.expect(msg).to.have.property('UserMentions');",
+                  "    pm.expect(msg).to.have.property('EmployeeMentions');",
+                  "  });",
+                  "});",
+                  "// Save cursor for load-more test",
+                  "const msgs = pm.response.json();",
+                  "if (msgs.length > 0) {",
+                  "  pm.collectionVariables.set('beforeCursor', msgs[msgs.length - 1].id);",
+                  "  pm.collectionVariables.set('messageId', msgs[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET room messages (load older via cursor)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms/{{roomId}}/messages?before={{beforeCursor}}&limit=30",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms", "{{roomId}}", "messages"],
+              "query": [
+                { "key": "before", "value": "{{beforeCursor}}" },
+                { "key": "limit",  "value": "30" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('All messages have id < cursor', () => {",
+                  "  const cursor = parseInt(pm.collectionVariables.get('beforeCursor'));",
+                  "  pm.response.json().forEach(msg => pm.expect(msg.id).to.be.below(cursor));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST send admin message (text)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "message",   "value": "Hello from Admin",  "type": "text" },
+                { "key": "displayAs", "value": "Admin",             "type": "text" }
+              ]
+            },
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms/{{roomId}}/messages",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms", "{{roomId}}", "messages"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('displayAs is Admin', () => {",
+                  "  pm.expect(pm.response.json().displayAs).to.eql('Admin');",
+                  "});",
+                  "pm.test('employeeId is set', () => {",
+                  "  pm.expect(pm.response.json().employeeId).to.be.a('number');",
+                  "});",
+                  "pm.test('Has full message shape', () => {",
+                  "  const msg = pm.response.json();",
+                  "  pm.expect(msg).to.have.property('Reactions');",
+                  "  pm.expect(msg).to.have.property('MessageReports');",
+                  "  pm.expect(msg).to.have.property('UserMentions');",
+                  "  pm.expect(msg).to.have.property('EmployeeMentions');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST send admin message (poll)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "dauth",        "value": "{{dauth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Please vote below!\",\n  \"displayAs\": \"Admin\",\n  \"pollQuestion\": \"Which session did you find most helpful?\",\n  \"pollOptions\": [\"Session A\", \"Session B\", \"Session C\"],\n  \"isPollMultiSelect\": false\n}"
+            },
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms/{{roomId}}/messages",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms", "{{roomId}}", "messages"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Has Polls array', () => {",
+                  "  pm.expect(pm.response.json()).to.have.property('Polls');",
+                  "  pm.expect(pm.response.json().Polls).to.be.an('array');",
+                  "});",
+                  "pm.test('Poll has question and options', () => {",
+                  "  const poll = pm.response.json().Polls[0]?.Poll;",
+                  "  pm.expect(poll).to.have.property('question');",
+                  "  pm.expect(poll.Options).to.be.an('array').with.lengthOf(3);",
+                  "});",
+                  "pm.test('isMultiple is false', () => {",
+                  "  pm.expect(pm.response.json().Polls[0]?.Poll.isMultiple).to.be.false;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST send admin message (multi-select poll)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "dauth",        "value": "{{dauth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Pick all that apply!\",\n  \"displayAs\": \"Admin\",\n  \"pollQuestion\": \"Which topics interest you?\",\n  \"pollOptions\": [\"Stocks\", \"Mutual Funds\", \"Crypto\", \"Real Estate\"],\n  \"isPollMultiSelect\": true\n}"
+            },
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms/{{roomId}}/messages",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms", "{{roomId}}", "messages"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('isMultiple is true', () => {",
+                  "  pm.expect(pm.response.json().Polls[0]?.Poll.isMultiple).to.be.true;",
+                  "});",
+                  "pm.test('Poll has 4 options', () => {",
+                  "  pm.expect(pm.response.json().Polls[0]?.Poll.Options).to.have.lengthOf(4);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST send admin message (with file)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "message", "value": "See attached file", "type": "text" },
+                { "key": "file",    "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms/{{roomId}}/messages",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms", "{{roomId}}", "messages"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Attachment is populated', () => {",
+                  "  const att = pm.response.json().attachment;",
+                  "  pm.expect(att).to.not.be.null;",
+                  "  pm.expect(att).to.have.property('url');",
+                  "  pm.expect(att).to.have.property('name');",
+                  "  pm.expect(att).to.have.property('type');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reports (Employee)",
+      "item": [
+        {
+          "name": "GET reports (all open)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/reports?status=OPEN&page=0&limit=20",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "reports"],
+              "query": [
+                { "key": "status", "value": "OPEN" },
+                { "key": "page",   "value": "0" },
+                { "key": "limit",  "value": "20" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns paginated shape', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body).to.have.property('data');",
+                  "  pm.expect(body).to.have.property('total');",
+                  "  pm.expect(body).to.have.property('page');",
+                  "  pm.expect(body).to.have.property('limit');",
+                  "  pm.expect(body.data).to.be.an('array');",
+                  "});",
+                  "pm.test('Each item has reportType', () => {",
+                  "  pm.response.json().data.forEach(r => {",
+                  "    pm.expect(['message','user']).to.include(r.reportType);",
+                  "  });",
+                  "});",
+                  "if (pm.response.json().data.length > 0) {",
+                  "  pm.collectionVariables.set('reportId', pm.response.json().data[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET reports (message type only)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/reports?type=message&page=0&limit=20",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "reports"],
+              "query": [
+                { "key": "type",  "value": "message" },
+                { "key": "page",  "value": "0" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns paginated shape', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.data).to.be.an('array');",
+                  "  pm.expect(body).to.have.property('total');",
+                  "});",
+                  "pm.test('All items have messageId', () => {",
+                  "  pm.response.json().data.forEach(r => pm.expect(r).to.have.property('messageId'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET reports (by roomId)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/reports?roomId={{roomId}}&page=0&limit=20",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "reports"],
+              "query": [
+                { "key": "roomId", "value": "{{roomId}}" },
+                { "key": "page",   "value": "0" },
+                { "key": "limit",  "value": "20" }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns paginated shape', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.data).to.be.an('array');",
+                  "  pm.expect(body).to.have.property('total');",
+                  "});",
+                  "pm.test('All items scoped to roomId', () => {",
+                  "  const rid = parseInt(pm.collectionVariables.get('roomId'));",
+                  "  pm.response.json().data.forEach(r => pm.expect(r.chatRoomId).to.eql(rid));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET reports by messageId",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/reports/message/by-message/{{messageId}}",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "reports", "message", "by-message", "{{messageId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns array', () => pm.expect(pm.response.json()).to.be.an('array'));",
+                  "pm.test('All reports have correct messageId', () => {",
+                  "  const mid = parseInt(pm.collectionVariables.get('messageId'));",
+                  "  pm.response.json().forEach(r => pm.expect(r.messageId).to.eql(mid));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET report detail (message)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/reports/message/{{reportId}}",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "reports", "message", "{{reportId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has priorReportCount', () => {",
+                  "  pm.expect(pm.response.json()).to.have.property('priorReportCount');",
+                  "});",
+                  "pm.test('Has nested Message with ChatRoom', () => {",
+                  "  const r = pm.response.json();",
+                  "  pm.expect(r.Message).to.have.property('ChatRoom');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET report detail - 404",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/reports/message/999999",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "reports", "message", "999999"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('Status 404', () => pm.response.to.have.status(404));"],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST resolve report (hide message)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "dauth",         "value": "{{dauth}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"RESOLVED\",\n  \"resolutionNote\": \"Confirmed spam, message hidden.\",\n  \"action\": \"hideMessage\"\n}"
+            },
+            "url": {
+              "raw": "{{server}}/command/chat-admin/reports/message/{{reportId}}/resolve",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "reports", "message", "{{reportId}}", "resolve"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is RESOLVED', () => {",
+                  "  pm.expect(pm.response.json().status).to.eql('RESOLVED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST resolve report (dismiss)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "dauth",         "value": "{{dauth}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DISMISSED\",\n  \"resolutionNote\": \"Not a violation.\"\n}"
+            },
+            "url": {
+              "raw": "{{server}}/command/chat-admin/reports/message/{{reportId}}/resolve",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "reports", "message", "{{reportId}}", "resolve"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is DISMISSED', () => {",
+                  "  pm.expect(pm.response.json().status).to.eql('DISMISSED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST resolve user report (ban user)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "dauth",         "value": "{{dauth}}" },
+              { "key": "Content-Type",  "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"RESOLVED\",\n  \"resolutionNote\": \"Repeated harassment.\",\n  \"action\": \"banUser\"\n}"
+            },
+            "url": {
+              "raw": "{{server}}/command/chat-admin/reports/user/{{reportId}}/resolve",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "reports", "user", "{{reportId}}", "resolve"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is RESOLVED', () => {",
+                  "  pm.expect(pm.response.json().status).to.eql('RESOLVED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reports (User-facing)",
+      "item": [
+        {
+          "name": "POST report a message",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{userDauth}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "dauth",        "value": "{{dauth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"spam\",\n  \"note\": \"This message contains a phishing link.\"\n}"
+            },
+            "url": {
+              "raw": "{{server}}/communicate/report/message/{{messageId}}",
+              "host": ["{{server}}"],
+              "path": ["communicate", "report", "message", "{{messageId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Report status is OPEN', () => {",
+                  "  pm.expect(pm.response.json().status).to.eql('OPEN');",
+                  "});",
+                  "pm.test('Reason matches', () => {",
+                  "  pm.expect(pm.response.json().reason).to.eql('spam');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST report a user",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{userDauth}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "dauth",        "value": "{{dauth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"harassment\",\n  \"note\": \"Sent offensive messages repeatedly.\",\n  \"chatRoomId\": 42\n}"
+            },
+            "url": {
+              "raw": "{{server}}/communicate/report/user/{{userId}}",
+              "host": ["{{server}}"],
+              "path": ["communicate", "report", "user", "{{userId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('Report status is OPEN', () => {",
+                  "  pm.expect(pm.response.json().status).to.eql('OPEN');",
+                  "});",
+                  "pm.test('Reported user id matches', () => {",
+                  "  const uid = parseInt(pm.collectionVariables.get('userId'));",
+                  "  pm.expect(pm.response.json().reportedUserId).to.eql(uid);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST report message - invalid reason (400)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{userDauth}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [
+              { "key": "dauth",        "value": "{{dauth}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"reason\": \"invalid_reason\" }"
+            },
+            "url": {
+              "raw": "{{server}}/communicate/report/message/{{messageId}}",
+              "host": ["{{server}}"],
+              "path": ["communicate", "report", "message", "{{messageId}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('Status 400', () => pm.response.to.have.status(400));"],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Monitoring",
+      "item": [
+        {
+          "name": "POST start monitoring room",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms/{{roomId}}/monitor",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms", "{{roomId}}", "monitor"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200 or 201', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "pm.test('monitoring is true', () => {",
+                  "  pm.expect(pm.response.json().monitoring).to.be.true;",
+                  "});",
+                  "pm.test('roomId matches', () => {",
+                  "  const rid = parseInt(pm.collectionVariables.get('roomId'));",
+                  "  pm.expect(pm.response.json().roomId).to.eql(rid);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST start monitoring room - 409 already monitoring",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms/{{roomId}}/monitor",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms", "{{roomId}}", "monitor"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Run after 'POST start monitoring room' without stopping first",
+                  "pm.test('Status 409', () => pm.response.to.have.status(409));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE stop monitoring room",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "dauth", "value": "{{dauth}}" }],
+            "url": {
+              "raw": "{{server}}/command/chat-admin/rooms/{{roomId}}/monitor",
+              "host": ["{{server}}"],
+              "path": ["command", "chat-admin", "rooms", "{{roomId}}", "monitor"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('monitoring is false', () => {",
+                  "  pm.expect(pm.response.json().monitoring).to.be.false;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
